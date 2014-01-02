@@ -10,7 +10,9 @@ var config = require('./../../licode_config');
 var logger = require('./logger').logger;
 var Permission = require('./permission');
 
-server.listen(8080);
+server.listen(8080, function() {
+    logger.info("ErizoController started up at port %d", server.address().port);
+});
 
 io.set('log level', 0);
 
