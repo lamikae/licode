@@ -1,6 +1,5 @@
 /*global require, exports, console*/
 var db = require('./dataBase').db;
-var BSON = require('mongodb').BSONPure;
 
 /*
  * Gets a list of the tokens in the data base.
@@ -8,7 +7,7 @@ var BSON = require('mongodb').BSONPure;
 var getList = exports.getList = function (callback) {
     "use strict";
 
-    db.tokens.find({}).toArray(function (err, tokens) {
+    db.tokens.find({}, function (err, tokens) {
         if (err || !tokens) {
             console.log('Empty list');
         } else {
@@ -20,7 +19,7 @@ var getList = exports.getList = function (callback) {
 var getToken = exports.getToken = function (id, callback) {
     "use strict";
 
-    db.tokens.findOne({_id: new BSON.ObjectID(id)}, function (err, token) {
+    db.tokens.findOne({_id: id}, function (err, token) {
         if (token == null) {
             token = undefined;
             console.log('Token ', id, ' not found');
@@ -51,7 +50,7 @@ exports.addToken = function (token, callback) {
     "use strict";
 
     db.tokens.save(token, function (error, saved) {
-        if (error) console.log('MongoDB: Error adding token: ', error);
+        if (error) console.log('SuperserviceDB: Error adding token: ', error);
         callback(saved._id);
     });
 };
@@ -64,11 +63,11 @@ var removeToken = exports.removeToken = function (id, callback) {
 
     hasToken(id, function (hasT) {
         if (hasT) {
-            db.tokens.remove({_id: new BSON.ObjectID(id)}, function (error, removed) {
-                if (error) console.log('MongoDB: Error removing token: ', error);
+            db.tokens.remove({_id: id}, function (error, removed) {
+                if (error) console.log('SuperserviceDB: Error removing token: ', error);
                 callback();
             });
-            
+
         }
     });
 };
@@ -80,7 +79,7 @@ exports.updateToken = function (token) {
     "use strict";
 
     db.tokens.save(token, function (error, saved) {
-        if (error) console.log('MongoDB: Error updating token: ', error);
+        if (error) console.log('SuperserviceDB: Error updating token: ', error);
     });
 };
 
@@ -89,9 +88,9 @@ exports.removeOldTokens = function () {
 
     var i, token, time, tokenTime, dif;
 
-    db.tokens.find({'use':{$exists:false}}).toArray(function (err, tokens) {
+    db.tokens.find({}, function (err, tokens) {
         if (err || !tokens) {
-            
+
         } else {
             for (i in tokens) {
                 token = tokens[i];

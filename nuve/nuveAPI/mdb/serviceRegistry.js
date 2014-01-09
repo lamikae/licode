@@ -1,6 +1,5 @@
 /*global require, exports, console*/
 var db = require('./dataBase').db;
-var BSON = require('mongodb').BSONPure;
 
 
 /*
@@ -8,7 +7,7 @@ var BSON = require('mongodb').BSONPure;
  */
 exports.getList = function (callback) {
     "use strict";
-    db.services.find({}).toArray(function (err, services) {
+    db.services.find({}, function (err, services) {
         if (err || !services) {
             console.log('Empty list');
         } else {
@@ -19,7 +18,7 @@ exports.getList = function (callback) {
 
 var getService = exports.getService = function (id, callback) {
     "use strict";
-    db.services.findOne({_id: new BSON.ObjectID(id)}, function (err, service) {
+    db.services.findOne({_id: id}, function (err, service) {
         if (service === undefined) {
             console.log("Service not found");
         }
@@ -48,7 +47,7 @@ exports.addService = function (service, callback) {
     "use strict";
     service.rooms = [];
     db.services.save(service, function (error, saved) {
-        if (error) console.log('MongoDB: Error adding service: ', error);
+        if (error) console.log('SuperserviceDB: Error adding service: ', error);
         callback(saved._id);
     });
 };
@@ -59,7 +58,7 @@ exports.addService = function (service, callback) {
 exports.updateService = function (service) {
     "use strict";
     db.services.save(service, function (error, saved) {
-        if (error) console.log('MongoDB: Error updating service: ', error);
+        if (error) console.log('SuperserviceDB: Error updating service: ', error);
     });
 };
 
@@ -70,26 +69,25 @@ exports.removeService = function (id) {
     "use strict";
     hasService(id, function (hasS) {
         if (hasS) {
-            db.services.remove({_id: new BSON.ObjectID(id)}, function (error, saved) {
-                if (error) console.log('MongoDB: Error removing service: ', error);
+            db.services.remove({_id: id}, function (error, saved) {
+                if (error) console.log('SuperserviceDB: Error removing service: ', error);
             });
         }
     });
 };
 
 /*
- * Gets a determined room in a determined service. Returns undefined if room does not exists. 
+ * Gets a determined room in a determined service. Returns undefined if room does not exists.
  */
 exports.getRoomForService = function (roomId, service, callback) {
     "use strict";
 
-    var room;
-    for (room in service.rooms) {
-        if (service.rooms.hasOwnProperty(room)) {
-            if (String(service.rooms[room]._id) === String(roomId)) {
-                callback(service.rooms[room]);
-                return;
-            }
+    var i;
+    for (i in service.rooms) {
+        var room = service.rooms[i];
+        if (String(room._id) === String(roomId)) {
+            callback(room);
+            return;
         }
     }
     callback(undefined);

@@ -9,12 +9,14 @@ config.erizo = {};
 config.rabbit.host = 'localhost';
 config.rabbit.port = 5672;
 
-config.nuve.dataBaseURL = "localhost/nuvedb";
-config.nuve.superserviceID = '_auto_generated_ID_';
+// load users, rooms, etc from flat file, must be absolute path
+config.nuve.superserviceDB = "/opt/licode/db_presets.js";
+// config.nuve.dataBaseURL = "localhost/nuvedb";
+// config.nuve.superserviceID = '_auto_generated_ID_';
 config.nuve.superserviceKey = '_auto_generated_KEY_';
 config.nuve.testErizoController = 'localhost:8080';
 
-//Use undefined to run clients without Stun 
+//Use undefined to run clients without Stun
 config.erizoController.stunServerUrl = 'stun:stun.l.google.com:19302';
 
 config.erizoController.defaultVideoBW = 300;
