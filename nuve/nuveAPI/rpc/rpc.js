@@ -1,98 +1,94 @@
 /*global exports, require, console, Buffer, setTimeout, clearTimeout*/
 var sys = require('util');
-var amqp = require('amqp');
 var rpcPublic = require('./rpcPublic');
 var config = require('./../../../licode_config');
 
 var TIMEOUT = 3000;
 
 var corrID = 0;
-var map = {};   //{corrID: {fn: callback, to: timeout}}
-var clientQueue;
-var connection;
-var exc;
+var corrs = {};   //{corrID: {fn: callback, to: timeout}}
 
-// Create the amqp connection to rabbitMQ server
-var addr = {};
+var deferred = require('deferred');
+var dnode = require('dnode');
+var nuveSock = config.nuve.rpcSock || 3446;
+var erizoControllerSock = config.erizoController.rpcSock || 3479;
 
-if (config.rabbit.url !== undefined) {
-    addr.url = config.rabbit.url;
-} else {
-    addr.host = config.rabbit.host;
-    addr.port = config.rabbit.port;
-}
 
+// This connect is called at Nuve startup, when erizoControllers are not yet online.
+// Opens dnode RPC server to publish rpcPublic interface for erizoControllers.
 exports.connect = function () {
+    /* When using unix sockets,
+       to use an existing socket file,
+       the method you’re looking for is net.createConnection(path):
 
-    connection = amqp.createConnection(addr);
+http://www.ggkf.com/node-js/connecting-to-an-already-established-unix-socket-with-node-js
 
-    connection.on('ready', function () {
-        "use strict";
-
-        console.log('Conected to rabbitMQ server');
-
-        //Create a direct exchange 
-        exc = connection.exchange('rpcExchange', {type: 'direct'}, function (exchange) {
-            console.log('Exchange ' + exchange.name + ' is open');
-
-            //Create the queue for receive messages
-            var q = connection.queue('nuveQueue', function (queue) {
-                console.log('Queue ' + queue.name + ' is open');
-
-                q.bind('rpcExchange', 'nuve');
-                q.subscribe(function (message) {
-
-                    rpcPublic[message.method](message.args, function (result) {
-
-                        exc.publish(message.replyTo, {data: result, corrID: message.corrID});
-                    });
-
-                });
-            });
-
-            //Create the queue for send messages
-            clientQueue = connection.queue('', function (q) {
-                console.log('ClientQueue ' + q.name + ' is open');
-
-                clientQueue.bind('rpcExchange', clientQueue.name);
-
-                clientQueue.subscribe(function (message) {
-
-                    if (map[message.corrID] !== undefined) {
-
-                        map[message.corrID].fn(message.data);
-                        clearTimeout(map[message.corrID].to);
-                        delete map[message.corrID];
-                    }
-                });
-
-            });
-        });
-
+    */
+    var nuveRpc = dnode(rpcPublic);
+    nuveRpc.listen(nuveSock);
+    nuveRpc.on('error', function (err) {
+        console.log("ERROR: could not open RPC server", err);
+        process.exit(1);
     });
-}
+    console.log("INFO: Listening to RPC @", nuveSock);
+};
+
 
 var callbackError = function (corrID) {
-    "use strict";
-
-    map[corrID].fn('timeout');
-    delete map[corrID];
+    if (corrID !== undefined) {
+        corrs[corrID].fn('timeout');
+        delete corrs[corrID];
+    }
 };
 
 /*
- * Calls remotely the 'method' function defined in rpcPublic of 'to'.
+ *  Calls erizoController remotely.
+ *  Has not been tested with multiple controllers.
  */
 exports.callRpc = function (to, method, args, callback) {
-    "use strict";
 
-    corrID += 1;
-    map[corrID] = {};
-    map[corrID].fn = callback;
-    map[corrID].to = setTimeout(callbackError, TIMEOUT, corrID);
+    // use this deferred to call callback and cancel callbackError timeout.
+    var d = deferred();
 
-    var send = {method: method, args: args, corrID: corrID, replyTo: clientQueue.name};
+    corrID ++;
+    corrs[corrID] = {};
+    corrs[corrID].fn = callback;
+    var timeout = setTimeout(callbackError, TIMEOUT, corrID);
+    corrs[corrID].to = timeout;
 
-    exc.publish(to, send);
+    // Open a temporary RPC connection to erizoController
+    var erizoControllerRpc;
 
+    d.promise.then(function (msg) {
+        // Clear error callback as the call was successful;
+        // clearing timeout from corrs[corrID].to causes mayhem
+        clearTimeout(timeout);
+        // Call RPC method
+        corrs[corrID].fn(msg);
+        delete corrs[corrID];
+        // close RPC
+        erizoControllerRpc.end();
+    }, function (err) {
+        console.log(err);
+        // the timeout will trigger
+    });
+
+    // Reply "to" is a little shady here..
+    // TODO: test with multiple erizoControllers
+    var send = {method: method, args: args, corrID: corrID, replyTo: to};
+
+    // open the RPC connection to erizoController here
+    try {
+        erizoControllerRpc = dnode.connect(erizoControllerSock);
+        erizoControllerRpc.on('remote', function (remote) {
+            // console.log("DEBUG: Opened RPC channel to erizoController @", erizoControllerSock);
+            // Call RPC method
+            fn = remote[method];
+            fn(args, d.resolve);
+        });
+    }
+    catch (err) {
+        d.reject(err);
+    }
 };
 

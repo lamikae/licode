@@ -51,4 +51,8 @@ populate_mongo(){
 }
 
 install_nuve
-populate_mongo
+
+# Using env var MONGODB=0 you can bypass this
+if [ "$MONGODB" != "0" ]; then
+  populate_mongo
+fi
