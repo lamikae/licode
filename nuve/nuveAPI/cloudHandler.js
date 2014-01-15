@@ -4,9 +4,9 @@ var config = require('./../../licode_config');
 var ec2;
 
 var INTERVAL_TIME_EC_READY = 100;
-var INTERVAL_TIME_CHECK_KA = 1000;
-var MAX_KA_COUNT = 10;
-
+var INTERVAL_TIME_CHECK_KA = 60000;
+// one interval is enough to cause a crash
+var MAX_KA_COUNT = 1;
 var erizoControllers = {};
 var rooms = {}; // roomId: erizoControllerId
 var ecQueue = [];

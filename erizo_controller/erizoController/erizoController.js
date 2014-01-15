@@ -21,11 +21,15 @@ var nuveKey = config.nuve.superserviceKey;
 var WARNING_N_ROOMS = config.erizoController.warning_n_rooms;
 var LIMIT_N_ROOMS = config.erizoController.limit_n_rooms;
 
-var INTERVAL_TIME_KEEPALIVE = config.erizoController.interval_time_keepAlive;
+var INTERVAL_TIME_KEEPALIVE = config.erizoController.interval_time_keepAlive || 15000;
 
 var myId;
 var rooms = {};
 var myState;
+
+// Number of allowed concurrent timeouts from nuved before closing socket.
+var MAX_TIMEOUT_COUNT = 1;
+var timeouts = 0;
 
 var calculateSignature = function (token, key) {
     "use strict";
@@ -99,40 +103,51 @@ var addToCloudHandler = function (callback) {
         }
 
         rpc.callRpc('nuve', 'addNewErizoController', {cloudProvider: config.cloudProvider.name, ip: publicIP}, function (msg) {
-
             if (msg === 'timeout') {
-                logger.info('CloudHandler does not respond');
-
-                // We'll try it more!
-                setTimeout(function() {
-                    attempt = attempt - 1;
-                    addECToCloudHandler(attempt);
-                }, 3000);
+                logger.warn('CloudHandler does not respond');
+                logger.info("Nuve timeout. Exiting process.");
+                process.exit(127);
                 return;
             }
             if (msg == 'error') {
-                logger.info('Error in communication with cloudProvider');
+                logger.warn('Error in communication with nuved');
             }
 
             publicIP = msg.publicIP;
             myId = msg.id;
             myState = 2;
 
-            var intervarId = setInterval(function () {
 
+            var keepAliveFunction = function () {
                 rpc.callRpc('nuve', 'keepAlive', myId, function (result) {
+
                     if (result === 'whoareyou') {
 
                         // TODO: It should try to register again in Cloud Handler. But taking into account current rooms, users, ...
                         logger.info('I don`t exist in cloudHandler. I`m going to be killed');
                         clearInterval(intervarId);
-                        rpc.callRpc('nuve', 'killMe', publicIP, function () {});
+                        rpc.callRpc('nuve', 'killMe', publicIP, function () {
+                            logger.info("The following crash is intentional. Please just restart the process.");
+                            process.exit(1);
+                        });
+                    }
+                    if (result === "timeout") {
+                        timeouts++;
+                        logger.warn("erizoController "+myId+" keepAlive "+ result);
+                        if (timeouts >= MAX_TIMEOUT_COUNT) {
+                            logger.info("Nuve did timeout "+timeouts+" times. Running down the process. Please restart.");
+                            process.exit(127);
+                        }
+                    }
+                    else {
+                        timeouts = 0;
                     }
                 });
-
-            }, INTERVAL_TIME_KEEPALIVE);
-
-            callback();
+            };
+            var intervarId = setInterval(keepAliveFunction, INTERVAL_TIME_KEEPALIVE);
+            keepAliveFunction(); // call first keepAlive immediately
+            callback(msg);
+            return;
 
         });
     };
@@ -200,11 +215,15 @@ var listen = function () {
                         socket.disconnect();
 
                     } else if (resp === 'timeout') {
-                        logger.info('Nuve does not respond');
+                        logger.warn('Nuve does not respond');
+                        timeouts += 1;
+                        if (timeouts > MAX_TIMEOUT_COUNT) {
+                            logger.warn("Nuved timeout "+timeouts+" timed. Disconnecting socket.");
+                            socket.disconnect();
+                        }
                         callback('error', 'Nuve does not respond');
-                        socket.disconnect();
-
                     } else if (token.host === resp.host) {
+                        timeouts = 0;
                         tokenDB = resp;
                         if (rooms[tokenDB.room] === undefined) {
                             var room = {};
