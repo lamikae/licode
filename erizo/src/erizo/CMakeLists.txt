@@ -15,9 +15,11 @@ set(ERIZO_VERSION_MAJOR 0)
 set(ERIZO_VERSION_MINOR 1)
 set(CMAKE_CXX_FLAGS "-g -Wall -std=c++0x")
 
-set(LIB_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/libdeps/build/lib/")
+set(LIB_DIRS "/opt/share/licode/lib")
+set(SSL_DIR "/opt/share/licode/ssl")
+set(SSL_INCLUDE_DIR "/opt/share/licode/include")
 
-include_directories("${ERIZO_SOURCE_DIR}" "${LIB_DIRS}../include/")
+include_directories("${ERIZO_SOURCE_DIR}" "${SSL_INCLUDE_DIR}" "/opt/share/licode/include")
 
 file(GLOB_RECURSE ERIZO_SOURCES "${ERIZO_SOURCE_DIR}/*.h" "${ERIZO_SOURCE_DIR}/*.c" "${ERIZO_SOURCE_DIR}/*.cpp")
 
@@ -46,10 +48,11 @@ find_library(NICE nice HINTS "${LIB_DIRS}")
 test_lib(${NICE})
 
 # OPENSSL
-find_library(SSL ssl HINTS "${LIB_DIRS}")
-test_lib(${SSL})
-find_library(CRYPTO crypto HINTS "${LIB_DIRS}")
-test_lib(${CRYPTO})
+# find_library(SSL ssl HINTS "${LIB_DIRS}")
+# test_lib(${SSL})
+# find_library(CRYPTO crypto HINTS "${LIB_DIRS}")
+# test_lib(${CRYPTO})
+set(SSL_LIB ${LIB_DIRS}/libssl.a ${LIB_DIRS}/libcrypto.a)
 
 # Libav
 find_library(AVUTIL avutil HINTS "${LIB_DIRS}")
@@ -63,9 +66,9 @@ test_lib(${AVFORMAT})
 set (LIBS ${LIBS} ${AVFORMAT})
 
 # LOG4CXX
-find_library(LOG log4cxx)
+find_library(LOG log4cxx HINTS "${LIB_DIRS}")
 test_lib(${LOG})
 
-#message("Libs ${SRTP} ${NICE} ${GTHREAD} ${SSL} ${CRYPTO} ${LIBS} ${LOG}")
+target_link_libraries(erizo ${SRTP} ${NICE} ${GTHREAD} ${SSL_LIB} ${LIBS} ${LOG})
 
-target_link_libraries(erizo ${SRTP} ${NICE} ${GTHREAD} ${SSL} ${CRYPTO} ${LIBS} ${LOG})
+message("Linked libraries:\n   ${GTHREAD}\n   ${SRTP}\n   ${NICE}\n   ${SSL_LIB}\n   ${LIBS}\n   ${LOG}")
