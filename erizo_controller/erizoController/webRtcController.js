@@ -1,6 +1,19 @@
 /*global require, exports, console, setInterval, clearInterval*/
 
-var addon = require('./../../erizoAPI/build/Release/addon');
+/*
+The version installed by licode/script should be considered
+a stable release version, and should be used, unless
+LICODE_LIBDIR is defined, in which case erizoAPI should be loaded there.
+ */
+var addon;
+if (process.env.LICODE_LIBDIR === undefined) {
+    addon = require('./../../erizoAPI/build/Release/addon');
+}
+else {
+    var path = require('path');
+    addon = require(path.join(process.env.LICODE_LIBDIR,'erizoAPI','addon'));
+}
+
 var config = require('./../../licode_config');
 var logger = require('./logger').logger;
 
