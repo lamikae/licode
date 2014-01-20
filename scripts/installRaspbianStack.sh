@@ -28,14 +28,32 @@ install_openssl() {
     "-fPIC"
 }
 
+# Patch libnice to bypass symmetric NAT
 install_libnice() {
-  install_package "libnice-licode" "0.1.4" \
-    "http://nice.freedesktop.org/releases/libnice-0.1.4.tar.gz"
+  package="libnice-licode"
+  version="0.1.4"
+  url="http://nice.freedesktop.org/releases/libnice-0.1.4.tar.gz"
+
+  check_package $package $version
+  if [ $? == 0 ]; then return 0; fi
+  check_deb_build $package $version
+  if [ $? != 0 ]; then
+    info "Compiling $package to $PREFIX_DIR"
+    dirname=$(download_and_unpack $url)
+    cd ${dirname} || fail
+    echo " * Applying libnice-014.patch0"
+    patch -R ./agent/conncheck.c < ${SCRIPTSDIR}/libnice-014.patch0
+    ./configure --prefix=$PREFIX_DIR || fail
+    make -s V=0 || fail
+    build_deb $package $version || fail
+  fi
+  install_deb "${package}_${version}*.deb" || fail
 }
 
 build_libsrtp() {
   package="libsrtp-licode"
   version="1.4.4"
+
   check_package $package $version
   if [ $? == 0 ]; then return 0; fi
   check_deb_build $package $version
