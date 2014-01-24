@@ -114,7 +114,7 @@ var generateToken = function (callback) {
                 return;
             }
 
-            token.host = ec.ip + ':8080';
+            token.host = ec.ip + ''; // nginx front, same port
 
             tokenRegistry.addToken(token, function (id) {
 
