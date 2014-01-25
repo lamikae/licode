@@ -6,7 +6,8 @@ var logger = function() {
         new winston.transports.Console({
           handleExceptions: true,
           timestamp: true,
-          colorize: false
+          colorize: true,
+          level: 'debug'
         })
       ],
       exitOnError: false
