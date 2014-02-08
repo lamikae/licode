@@ -50,7 +50,7 @@ install_libnice() {
   install_deb "${package}_${version}*.deb" || fail
 }
 
-build_libsrtp() {
+install_libsrtp() {
   package="libsrtp-licode"
   version="1.4.4"
 
