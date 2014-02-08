@@ -1,0 +1,196 @@
+#!/bin/bash
+SCRIPTSDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT=${SCRIPTSDIR}/..
+BUILD_DIR=$ROOT/build
+LIB_DIR=$BUILD_DIR/libdeps
+PREFIX_DIR=$LIB_DIR/build/
+DEB_DIR=$ROOT/deb
+NODEJS_DIR=/opt/node
+
+info() {
+  echo -e "
+ *
+ * $*
+ *
+"
+}
+
+notice() {
+  echo -e "
+         *
+       **
+     ***
+    ***  $1
+    ***  $2
+   ***   $3
+  **
+ *
+"
+}
+
+fail() {
+  exit 1
+}
+
+pause() {
+  read -p "$*"
+}
+
+parse_arguments(){
+  while [ "$1" != "" ]; do
+    case $1 in
+      "--enable-gpl")
+        ENABLE_GPL=true
+        ;;
+    esac
+    shift
+  done
+}
+
+package_version_installed() {
+  echo $(dpkg-query -l $1 | awk /^ii/{'print $3'})
+  return $?
+}
+
+check_package() {
+  package="$1"
+  version="$2"
+  found_version=$(package_version_installed "$package")
+  grep "$version-1" <<< $found_version &>/dev/null
+  if [ $? == 0 ]; then
+    info "Dependency $package-$found_version is satisfied"
+    return 0
+  fi
+  return 1
+}
+
+check_deb_build() {
+  package=$1
+  version=$2
+  ls ${DEB_DIR}/${package}*${version}*.deb &>/dev/null
+  if [ $? == 0 ]; then
+    echo -e " * debian package $package-$version already exists\n"
+    return 0
+  fi
+  return 1
+}
+
+build_deb() {
+  package=$1
+  version=$2
+  # strip documentation, if exists
+  if [ -e doc-pak ]; then
+    rm -rf doc-pack
+  fi
+  checkinstall -d 0 --pkgname="$package" --pkgversion="$version" --pakdir="$DEB_DIR" \
+    --nodoc --deldoc=yes --fstrans=no --install=no --backup=no --default
+  return $?
+}
+
+install_apt_deps(){
+  info "Installing system dependencies via apt-get"
+  # libssl-dev is for nodejs
+  sudo apt-get -qy install \
+    autoconf automake build-essential cmake libtool pkg-config \
+    binutils checkinstall curl git \
+    libglib2.0-dev zlib1g-dev \
+    libboost-regex-dev libboost-thread-dev libboost-system-dev \
+    openjdk-6-jre \
+    libssl-dev \
+  || fail
+}
+
+download_and_unpack() {
+  url=$1
+  # extract filename and strip extensions with parameter expansion
+  zipfile="${url##*/}"
+  dirname="${zipfile%.*.*}"
+  mkdir -p ${LIB_DIR} &>/dev/null
+  cd ${LIB_DIR} || fail
+  if [ ! -e $dirname ]; then
+    curl -O "$url" || fail
+    tar -zxf $zipfile || fail
+  fi
+  if [ ! -e $dirname ]; then
+    fail
+  fi
+  echo $(pwd)/$dirname
+  return 0
+}
+
+install_deb() {
+  filename=$1
+  sudo dpkg -i ${DEB_DIR}/${filename} || fail
+}
+
+install_package() {
+  package=$1
+  version=$2
+  check_package $package $version
+  if [ $? == 0 ]; then return 0; fi
+  build_package $*
+  install_deb "${package}_${version}*.deb" || fail
+}
+
+# Build a package with no frills
+# Download, ./configure, make, checkinstall
+build_package() {
+  package=$1
+  version=$2
+  url=$3
+  prefix=$4
+  extra_configure_flags="$5 $6 $7 $8 $9"
+
+  if [ -z $prefix ]; then prefix=$PREFIX_DIR; fi
+
+  check_deb_build $package $version
+  if [ $? == 0 ]; then return 0; fi
+
+  info "Compiling $package $2 to $prefix"
+  dirname=$(download_and_unpack $url)
+
+  cd ${dirname} || fail
+  # $extra_configure_flags may override prefix
+  echo ./configure --prefix=$prefix $extra_configure_flags
+  if [ -e configure ]; then
+    ./configure --prefix=$prefix $extra_configure_flags || fail
+  elif [ -e config ]; then
+    ./config --prefix=$prefix $extra_configure_flags || fail
+  fi
+  make -s V=0 || fail
+
+  build_deb $package $version || fail
+  return $?
+}
+
+# If "node" command is not found, node.js source package is downloaded,
+# compiled and installed into prefix directory given in $1.
+install_nodejs() {
+  package="nodejs"
+  version="0.10.25"
+  url="http://nodejs.org/dist/v0.10.25/node-v0.10.25.tar.gz"
+  notice "Make certain $NODEJS_DIR/bin is in your \$PATH"
+  export PATH=$NODEJS_DIR/bin:$PATH
+  which node
+  if [ $? == 1 ]; then
+    build_package $package $version $url $NODEJS_DIR
+    return $?
+  else
+    info "Node.js $(node -v) found"
+    return 0
+  fi
+}
+
+
+# install node-gyp, node.js extension compiler
+install_nodegyp() {
+  node_gyp_version=$(node-gyp -v 2>/dev/null)
+  required_version="0.9.6"
+  grep "$required_version" <<< $node_gyp_version &>/dev/null
+  if [ $? != 0 ]; then
+    info "Installing node-gyp via npm"
+    sudo $NODEJS_DIR/bin/npm install -g node-gyp@$required_version || fail
+  fi
+  sudo chown -R `whoami` ~/.npm ~/tmp/ 2>/dev/null
+}
+

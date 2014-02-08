@@ -32,8 +32,8 @@ Erizo.Bar = function (spec) {
 
     // Lynckia icon
     that.link = document.createElement('a');
-    that.link.setAttribute('href', 'http://www.lynckia.com/');
-    that.link.setAttribute('target', '_blank');
+    that.link.setAttribute('href', '#');
+    // that.link.setAttribute('target', '_blank');
 
     that.logo = document.createElement('img');
     that.logo.setAttribute('style', 'width: 100%; height: 100%; max-width: 30px; position: absolute; top: 0; left: 2px;');

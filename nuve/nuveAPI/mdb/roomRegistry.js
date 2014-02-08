@@ -1,12 +1,10 @@
 /*global require, exports, console*/
 var db = require('./dataBase').db;
-var BSON = require('mongodb').BSONPure;
-
 
 var getRoom = exports.getRoom = function (id, callback) {
     "use strict";
 
-    db.rooms.findOne({_id: new BSON.ObjectID(id)}, function (err, room) {
+    db.rooms.findOne({_id: id}, function (err, room) {
         if (room === undefined) {
             console.log('Room ', id, ' not found');
         }
@@ -35,7 +33,7 @@ exports.addRoom = function (room, callback) {
     "use strict";
 
     db.rooms.save(room, function (error, saved) {
-        if (error) console.log('MongoDB: Error adding room: ', error);
+        if (error) console.log('SuperserviceDB: Error adding room: ', error);
         callback(saved);
     });
 };
@@ -47,8 +45,8 @@ exports.removeRoom = function (id) {
     "use strict";
     hasRoom(id, function (hasR) {
         if (hasR) {
-            db.rooms.remove({_id: new BSON.ObjectID(id)}, function (error, removed) {
-                if (error) console.log('MongoDB: Error romoving room: ', error);
+            db.rooms.remove({_id: id}, function (error, removed) {
+                if (error) console.log('SuperserviceDB: Error removing room: ', error);
             });
         }
     });

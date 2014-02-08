@@ -1,6 +1,6 @@
 #!/bin/bash
 
-java -jar compiler.jar --js ../lib/xmlhttprequest.js --js_output_file ../dist/xmlhttprequest.js
+java -jar compiler.jar  --compilation_level WHITESPACE_ONLY --formatting PRETTY_PRINT --js ../lib/xmlhttprequest.js --js_output_file ../dist/xmlhttprequest.js
 
 TARGET=../dist/nuve.js
 

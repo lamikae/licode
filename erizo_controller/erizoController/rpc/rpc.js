@@ -1,5 +1,4 @@
 var sys = require('util');
-var amqp = require('amqp');
 var rpcPublic = require('./rpcPublic');
 var config = require('./../../../licode_config');
 var logger = require('./../logger').logger;
@@ -7,89 +6,99 @@ var logger = require('./../logger').logger;
 var TIMEOUT = 2000;
 
 var corrID = 0;
-var map = {};	//{corrID: {fn: callback, to: timeout}}
-var connection;
-var exc;
-var clientQueue;
+var corrs = {};	//{corrID: {fn: callback, to: timeout}}
 
-var addr = {};
+var deferred = require('deferred');
+var dnode = require('dnode');
+var clientID;
+var nuve;
+var nuveSock = config.nuve.rpcSock || 3446;
+var erizoControllerSock = config.erizoController.rpcSock || 3479;
 
-if (config.rabbit.url !== undefined) {
-	addr.url = config.rabbit.url;
-} else {
-	addr.host = config.rabbit.host;
-	addr.port = config.rabbit.port;
-}
 
 exports.connect = function(callback) {
+    // Open dnode RPC client to initiate intra-process communication with nuve.
+    var nuveRpc = dnode.connect(nuveSock);
+    var erizoControllerRpc;
 
-	// Create the amqp connection to rabbitMQ server
-	connection = amqp.createConnection(addr);
-	connection.on('ready', function () {
+    nuveRpc.on('remote', function (remote, d) {
+        logger.info("Opened RPC channel to nuve @", nuveSock);
+        nuve = remote;
+        // Open dnode RPC server to publish rpcPublic interface for nuve.
+        erizoControllerRpc = dnode(rpcPublic);
+        erizoControllerRpc.listen(erizoControllerSock);
+        logger.info("Listening to RPC @", erizoControllerSock);
+        // connect ok
+        callback();
+    });
 
-		//Create a direct exchange
-		exc = connection.exchange('rpcExchange', {type: 'direct'}, function (exchange) {
-			logger.info('Exchange ' + exchange.name + ' is open');
-
-			//Create the queue for send messages
-	  		clientQueue = connection.queue('', function (q) {
-			  	logger.info('ClientQueue ' + q.name + ' is open');
-
-			 	clientQueue.bind('rpcExchange', clientQueue.name);
-
-			  	clientQueue.subscribe(function (message) {
-
-			  		if(map[message.corrID] !== undefined) {
-			  			clearTimeout(map[message.corrID].to);
-						map[message.corrID].fn(message.data);
-						delete map[message.corrID];
-					}
-			  	});
-
-			  	callback();
-			});
-		});
-	});
-}
+    nuveRpc.on('error', function (err) {
+        logger.error("Nuve does not respond", err);
+        // close my service
+        if (erizoControllerRpc !== undefined) {
+            erizoControllerRpc.end();
+        }
+        // try again
+        setTimeout(function(){ exports.connect(callback); }, 5000);
+    });
+};
 
 exports.bind = function(id, callback) {
-
-	//Create the queue for receive messages
-	var q = connection.queue(id, function (queueCreated) {
-	  	logger.info('Queue ' + queueCreated.name + ' is open');
-
-	  	q.bind('rpcExchange', id);
-  		q.subscribe(function (message) {
-
-    		rpcPublic[message.method](message.args, function(result) {
-
-    			exc.publish(message.replyTo, {data: result, corrID: message.corrID});
-    		});
-
-  		});
-
-  		callback();
-
-	});
-}
+    clientID = id;
+    callback(id);
+};
 
 /*
  * Calls remotely the 'method' function defined in rpcPublic of 'to'.
  */
 exports.callRpc = function(to, method, args, callback) {
 
-	corrID ++;
-	map[corrID] = {};
-	map[corrID].fn = callback;
-	map[corrID].to = setTimeout(callbackError, TIMEOUT, corrID);
+    // use this deferred to call callback and cancel callbackError timeout.
+    var d = deferred();
 
-	var send = {method: method, args: args, corrID: corrID, replyTo: clientQueue.name };
+    corrID ++;
+    corrs[corrID] = {};
+    corrs[corrID].fn = callback;
+    var timeout = setTimeout(callbackError, TIMEOUT, corrID);
+    corrs[corrID].to = timeout;
 
- 	exc.publish(to, send);
+    d.promise.then(function (msg) {
+        if (method !== 'keepAlive') {
+            logger.info(method, msg);
+        }
+        // Clear error callback as the call was successful;
+        // clearing timeout from corrs[corrID].to causes mayhem
+        clearTimeout(timeout);
+        // Call RPC method
+        corrs[corrID].fn(msg);
+        delete corrs[corrID];
+        // leave the socket open, it has to keepAlive
+    }, function (err) {
+        console.log(err);
+        // the timeout will trigger
+    });
 
-}
+    var send = {method: method, args: args, corrID: corrID, replyTo: clientID };
+
+    // use existing RPC connection to nuve
+    try {
+        if (nuve !== undefined) {
+            // logger.debug("Call nuve", method, args);
+            fn = nuve[method];
+            fn(args, d.resolve);
+        }
+        else {
+            d.reject(new Error("Nuve RPC is not available!"));
+        }
+    }
+    catch (err) {
+        d.reject(err);
+    }
+};
 
 var callbackError = function(corrID) {
-	map[corrID].fn('timeout');
-	delete map[corrID];
-}
+    if (corrID !== undefined) {
+        corrs[corrID].fn('timeout');
+        delete corrs[corrID];
+    }
+};

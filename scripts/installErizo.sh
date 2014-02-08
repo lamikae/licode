@@ -1,41 +1,32 @@
 #!/bin/bash
+source $(dirname "${BASH_SOURCE[0]}")/common-debian-functions
 
-SCRIPT=`pwd`/$0
-FILENAME=`basename $SCRIPT`
-PATHNAME=`dirname $SCRIPT`
-ROOT=$PATHNAME/..
-BUILD_DIR=$ROOT/build
-CURRENT_DIR=`pwd`
-LIB_DIR=$BUILD_DIR/libdeps
-PREFIX_DIR=$LIB_DIR/build/
+PREFIX_DIR=/opt/share/licode
 
-pause() {
-  read -p "$*"
-}
 
 install_erizo(){
   cd $ROOT/erizo
-  ./generateProject.sh
-  ./buildProject.sh
+  ./generateProject.sh && \
+  ./buildProject.sh || fail
   export ERIZO_HOME=`pwd`
   cd $CURRENT_DIR
 }
 
 install_erizo_api(){
   cd $ROOT/erizoAPI
-  ./build.sh
+  ./build.sh || fail
   cd $CURRENT_DIR
 }
 
 install_erizo_controller(){
   cd $ROOT/erizo_controller
-  ./installErizo_controller.sh
+  ./installErizo_controller.sh || fail
   cd $CURRENT_DIR
 }
 
-echo 'Installing erizo...'
+info 'Installing erizo...'
 install_erizo
-echo 'Installing erizoAPI...'
+info 'Installing erizoAPI...'
 install_erizo_api
-echo 'Installing erizoController...'
+info 'Installing erizoController...'
 install_erizo_controller
