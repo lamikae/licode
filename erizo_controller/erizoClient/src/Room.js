@@ -100,8 +100,10 @@ Erizo.Room = function (spec) {
 
         delete io.sockets[host];
 
-        that.socket = io.connect(token.host,
-            {log: true, reconnect: true, secure: true, resource: "erizo.io"});
+        var secure = (document.location.protocol == 'https:');
+
+        that.socket = io.connect("/",
+            {log: true, reconnect: true, secure: secure, resource: "erizo.io"});
 
         // We receive an event with a new stream in the room.
         // type can be "media" or "data"
