@@ -22,8 +22,8 @@ install_nginx() {
 }
 
 install_openssl() {
-  install_package "libssl-licode" "1.0.1f" \
-    "http://www.openssl.org/source/openssl-1.0.1f.tar.gz" \
+  install_package "libssl-licode" "1.0.1g" \
+    "http://www.openssl.org/source/openssl-1.0.1g.tar.gz" \
     $PREFIX_DIR \
     "-fPIC"
 }
