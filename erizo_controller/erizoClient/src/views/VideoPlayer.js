@@ -37,8 +37,60 @@ Erizo.VideoPlayer = function (spec) {
     // It will stop the VideoPlayer and remove it from the HTML
     that.destroy = function () {
         that.video.pause();
-        clearInterval(that.resize);
+        delete that.resizer;
         that.parentNode.removeChild(that.div);
+    };
+
+    that.resize = function () {
+
+        var width = that.container.offsetWidth,
+            height = that.container.offsetHeight;
+
+        if (spec.stream.screen || spec.options.crop === false) {
+
+            if (width * (3 / 4) < height) {
+
+                that.video.style.width = width + "px";
+                that.video.style.height = (3 / 4) * width + "px";
+
+                that.video.style.top = -((3 / 4) * width / 2 - height / 2) + "px";
+                that.video.style.left = "0px";
+
+            } else {
+
+                that.video.style.height = height + "px";
+                that.video.style.width = (4 / 3) * height + "px";
+
+                that.video.style.left = -((4 / 3) * height / 2 - width / 2) + "px";
+                that.video.style.top = "0px";
+
+            }
+        } else {
+            if (width !== that.containerWidth || height !== that.containerHeight) {
+
+                if (width * (3 / 4) > height) {
+
+                    that.video.style.width = width + "px";
+                    that.video.style.height = (3 / 4) * width + "px";
+
+                    that.video.style.top = -((3 / 4) * width / 2 - height / 2) + "px";
+                    that.video.style.left = "0px";
+
+                } else {
+
+                    that.video.style.height = height + "px";
+                    that.video.style.width = (4 / 3) * height + "px";
+
+                    that.video.style.left = -((4 / 3) * height / 2 - width / 2) + "px";
+                    that.video.style.top = "0px";
+
+                }
+            }
+        }
+
+        that.containerWidth = width;
+        that.containerHeight = height;
+
     };
 
     /*window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
@@ -65,8 +117,6 @@ Erizo.VideoPlayer = function (spec) {
     that.video.setAttribute('id', 'stream' + that.id);
     that.video.setAttribute('style', 'width: 100%; height: 100%; position: absolute');
     that.video.setAttribute('autoplay', 'autoplay');
-    if(spec.stream.local) 
-        that.video.volume = 0;
 
     if(spec.stream.local) 
         that.video.volume = 0;
@@ -87,59 +137,9 @@ Erizo.VideoPlayer = function (spec) {
     that.containerWidth = 0;
     that.containerHeight = 0;
 
-    that.resize = setInterval(function () {
+    that.resizer = new L.ResizeSensor(that.container, that.resize);
 
-        var width = that.container.offsetWidth,
-            height = that.container.offsetHeight;
-
-        if (!spec.stream.screen) {
-            if (width !== that.containerWidth || height !== that.containerHeight) {
-
-                if (width * (3 / 4) > height) {
-
-                    that.video.style.width = width + "px";
-                    that.video.style.height = (3 / 4) * width + "px";
-
-                    that.video.style.top = -((3 / 4) * width / 2 - height / 2) + "px";
-                    that.video.style.left = "0px";
-
-                } else {
-
-                    that.video.style.height = height + "px";
-                    that.video.style.width = (4 / 3) * height + "px";
-
-                    that.video.style.left = -((4 / 3) * height / 2 - width / 2) + "px";
-                    that.video.style.top = "0px";
-
-                }
-            }
-
-        } else {
-            if (width * (3 / 4) < height) {
-
-                that.video.style.width = width + "px";
-                that.video.style.height = (3 / 4) * width + "px";
-
-                that.video.style.top = -((3 / 4) * width / 2 - height / 2) + "px";
-                that.video.style.left = "0px";
-
-            } else {
-
-                that.video.style.height = height + "px";
-                that.video.style.width = (4 / 3) * height + "px";
-
-                that.video.style.left = -((4 / 3) * height / 2 - width / 2) + "px";
-                that.video.style.top = "0px";
-
-            }
-
-        }
-
-        that.containerWidth = width;
-        that.containerHeight = height;
-
-    }, 500);
-
+    that.resize();
 
     // Bottom Bar
     that.bar = new Erizo.Bar({elementID: 'player_' + that.id, id: that.id, stream: spec.stream, media: that.video, options: spec.options});
