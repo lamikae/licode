@@ -21,7 +21,7 @@ else
     npm install --loglevel error dnode deferred
 fi
 if [ "$MONGODB" != "0" ]; then
-    npm install --loglevel error mongodb mongojs
+    npm install --loglevel error mongojs
 fi
 if [ "$AWS" != "0" ]; then
     npm install --loglevel error aws-lib
