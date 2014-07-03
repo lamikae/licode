@@ -153,8 +153,8 @@ install_liblog4cxx() {
 # Dependency for log4cxx
 install_libapr() {
   package="libapr-licode"
-  version="1.5.0"
-  url="http://mirror.netinch.com/pub/apache/apr/apr-1.5.0.tar.gz"
+  version="1.5.1"
+  url="http://mirror.netinch.com/pub/apache/apr/apr-1.5.1.tar.gz"
   install_package $package $version $url
 }
 
